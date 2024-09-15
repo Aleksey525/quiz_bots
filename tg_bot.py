@@ -40,13 +40,19 @@ def handle_new_question_request(update: Update, context: CallbackContext):
 
 def handle_solution_attempt(update: Update, context: CallbackContext) -> None:
     chat_id = update.message.chat_id
-    if 'answer' in context.bot_data and update.message.text == context.bot_data['answer']:
+    if update.message.text == context.bot_data['answer']:
         context.bot.send_message(chat_id=chat_id,
                                  text='Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос')
-        del context.bot_data['answer']  # Clear the answer after checking
+        del context.bot_data['answer']
     else:
         context.bot.send_message(chat_id=chat_id,
                                  text='Неправильно… Попробуешь ещё раз?')
+
+
+def handle_attempt_surrender(update: Update, context: CallbackContext) -> None:
+    chat_id = update.message.chat_id
+    context.bot.send_message(chat_id=chat_id,
+                             text=context.bot_data['answer'])
 
 
 def main():
@@ -57,6 +63,7 @@ def main():
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(MessageHandler(Filters.regex(r'^Новый вопрос$'), handle_new_question_request))
+    dispatcher.add_handler(MessageHandler(Filters.regex(r'^Сдаться$'), handle_attempt_surrender))
     dispatcher.add_handler(MessageHandler(Filters.update.message & Filters.text, handle_solution_attempt))
     updater.start_polling()
     updater.idle()
