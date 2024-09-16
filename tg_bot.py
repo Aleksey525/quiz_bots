@@ -3,9 +3,11 @@ import telegram
 from environs import Env
 import redis
 from telegram import Update, ForceReply
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, ConversationHandler, RegexHandler
 from dict_create import create_dict_with_questions
+
+
+QUESTION, RESPONSE  = range(2)
 
 
 def start(update: Update, context: CallbackContext):
@@ -15,12 +17,14 @@ def start(update: Update, context: CallbackContext):
         fr'Hi {user.mention_markdown_v2()}\!',
         reply_markup=ForceReply(selective=True),
     )
+
     custom_keyboard = [['Новый вопрос', 'Сдаться'],
                        ['Мой счет']]
     reply_markup = telegram.ReplyKeyboardMarkup(custom_keyboard)
     context.bot.send_message(chat_id=chat_id,
                              text='Появились кнопки',
                              reply_markup=reply_markup)
+    return QUESTION
 
 
 def handle_new_question_request(update: Update, context: CallbackContext):
@@ -35,7 +39,16 @@ def handle_new_question_request(update: Update, context: CallbackContext):
     answer = dict_with_questions[question]
     payload = {'answer': answer}
     context.bot_data.update(payload)
-    print(context.bot_data)
+    return RESPONSE
+
+
+def handle_attempt_surrender(update: Update, context: CallbackContext) -> None:
+    chat_id = update.message.chat_id
+    context.bot.send_message(chat_id=chat_id,
+                             text=context.bot_data['answer'])
+    del context.bot_data['answer']
+    handle_new_question_request(update, context)
+    return RESPONSE
 
 
 def handle_solution_attempt(update: Update, context: CallbackContext) -> None:
@@ -44,15 +57,18 @@ def handle_solution_attempt(update: Update, context: CallbackContext) -> None:
         context.bot.send_message(chat_id=chat_id,
                                  text='Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос')
         del context.bot_data['answer']
+        return QUESTION
     else:
         context.bot.send_message(chat_id=chat_id,
                                  text='Неправильно… Попробуешь ещё раз?')
+        return RESPONSE
 
 
-def handle_attempt_surrender(update: Update, context: CallbackContext) -> None:
-    chat_id = update.message.chat_id
-    context.bot.send_message(chat_id=chat_id,
-                             text=context.bot_data['answer'])
+
+def cancel(update: Update, context: CallbackContext):
+    update.message.reply_text('Bye! I hope we can talk again some day.',
+                              )
+    return ConversationHandler.END
 
 
 def main():
@@ -61,10 +77,23 @@ def main():
     bot_token = env.str('TG_BOT_TOKEN')
     updater = Updater(bot_token)
     dispatcher = updater.dispatcher
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(MessageHandler(Filters.regex(r'^Новый вопрос$'), handle_new_question_request))
-    dispatcher.add_handler(MessageHandler(Filters.regex(r'^Сдаться$'), handle_attempt_surrender))
-    dispatcher.add_handler(MessageHandler(Filters.update.message & Filters.text, handle_solution_attempt))
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+
+        states = {
+
+            QUESTION: [MessageHandler(Filters.regex('^Новый вопрос$'), handle_new_question_request)],
+
+            RESPONSE: [MessageHandler(Filters.text & ~Filters.regex('^Новый вопрос$') & ~Filters.regex('^Сдаться'), handle_solution_attempt),
+                       MessageHandler(Filters.regex('^Сдаться$'), handle_attempt_surrender)],
+
+        },
+
+        fallbacks=[CommandHandler('cancel', cancel)]
+
+    )
+
+    dispatcher.add_handler(conv_handler)
     updater.start_polling()
     updater.idle()
 
