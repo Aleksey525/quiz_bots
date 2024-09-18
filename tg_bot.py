@@ -1,16 +1,18 @@
 import random
-import telegram
+
 from environs import Env
 import redis
-from telegram import Update, ForceReply
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, ConversationHandler, RegexHandler
+import telegram
+from telegram import ForceReply
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
+
 from dict_create import create_dict_with_questions
 
 
 QUESTION, RESPONSE  = range(2)
 
 
-def start(update: Update, context: CallbackContext):
+def start(update, context):
     user = update.effective_user
     chat_id = update.message.chat_id
     update.message.reply_markdown_v2(
@@ -27,7 +29,7 @@ def start(update: Update, context: CallbackContext):
     return QUESTION
 
 
-def handle_new_question_request(update: Update, context: CallbackContext):
+def handle_new_question_request(update, context):
     dict_with_questions = create_dict_with_questions()
     chat_id = update.message.chat_id
     r = redis.Redis(host='redis-12998.c299.asia-northeast1-1.gce.redns.redis-cloud.com', port=12998,
@@ -42,7 +44,7 @@ def handle_new_question_request(update: Update, context: CallbackContext):
     return RESPONSE
 
 
-def handle_attempt_surrender(update: Update, context: CallbackContext) -> None:
+def handle_attempt_surrender(update, context):
     chat_id = update.message.chat_id
     context.bot.send_message(chat_id=chat_id,
                              text=context.bot_data['answer'])
@@ -51,7 +53,7 @@ def handle_attempt_surrender(update: Update, context: CallbackContext) -> None:
     return RESPONSE
 
 
-def handle_solution_attempt(update: Update, context: CallbackContext) -> None:
+def handle_solution_attempt(update, context):
     chat_id = update.message.chat_id
     if update.message.text == context.bot_data['answer']:
         context.bot.send_message(chat_id=chat_id,
@@ -64,8 +66,7 @@ def handle_solution_attempt(update: Update, context: CallbackContext) -> None:
         return RESPONSE
 
 
-
-def cancel(update: Update, context: CallbackContext):
+def cancel(update, context):
     update.message.reply_text('Bye! I hope we can talk again some day.',
                               )
     return ConversationHandler.END
@@ -82,11 +83,13 @@ def main():
 
         states = {
 
-            QUESTION: [MessageHandler(Filters.regex('^Новый вопрос$'), handle_new_question_request)],
+            QUESTION: [MessageHandler(Filters.regex('^Новый вопрос$'), handle_new_question_request)
+                       ],
 
-            RESPONSE: [MessageHandler(Filters.text & ~Filters.regex('^Новый вопрос$') & ~Filters.regex('^Сдаться'), handle_solution_attempt),
-                       MessageHandler(Filters.regex('^Сдаться$'), handle_attempt_surrender)],
-
+            RESPONSE: [MessageHandler(Filters.text & ~Filters.regex('^Новый вопрос$')
+                                      & ~Filters.regex('^Сдаться'), handle_solution_attempt),
+                       MessageHandler(Filters.regex('^Сдаться$'), handle_attempt_surrender)
+                       ],
         },
 
         fallbacks=[CommandHandler('cancel', cancel)]
