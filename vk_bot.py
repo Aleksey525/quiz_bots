@@ -4,12 +4,17 @@ import time
 
 from environs import Env
 import redis
+import telegram
 import vk_api as vk
 from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from vk_api.utils import get_random_id
-from vk_api.exceptions import VkApiError
+
 from dict_create import create_dict_with_questions
+from logs_handler import TelegramLogsHandler, logger
+
+
+ERROR_CHECKING_DELAY = 10
 
 
 def ask_question(chat_id):
@@ -49,44 +54,55 @@ def main():
     bot_token = env.str('VK_BOT_TOKEN')
     redis_host = env.str('REDIS_HOST')
     redis_port = env.int('REDIS_PORT')
+    chat_id = env.str('TG_CHAT_ID')
     redis_password = env.str('REDIS_PASSWORD')
-    redis_connection = redis.Redis(host=redis_host, port=redis_port,
-                                   password=redis_password, db=0, decode_responses=True)
+    logger_bot = telegram.Bot(token=env.str('TG_LOGGER_BOT_TOKEN'))
     vk_session = vk.VkApi(token=bot_token)
     vk_api = vk_session.get_api()
-    longpoll = VkLongPoll(vk_session)
-
-    for event in longpoll.listen():
-        peer_id = event.peer_id
-        if event.type == VkEventType.MESSAGE_NEW and event.to_me:
-            if event.text == 'привет':
-                create_keyboard(vk_api, peer_id)
-            elif event.text == 'Новый вопрос':
-                question, answer = ask_question(peer_id)
-                redis_connection.set(str(peer_id), question)
-                send_text(question, event, vk_api)
-                print(answer)
-            elif event.text == 'Сдаться':
-                question = redis_connection.get(peer_id)
-                questions = create_dict_with_questions()
-                answer = questions[question]
-                send_text(answer, event, vk_api)
-                question, answer = ask_question(peer_id)
-                redis_connection.set(str(peer_id), question)
-                send_text(question, event, vk_api)
-                print(answer)
-            else:
-                question = redis_connection.get(peer_id)
-                questions = create_dict_with_questions()
-                answer = questions[question]
-                print(answer)
-                if event.text == answer:
-                    text = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
-                    redis_connection.delete(peer_id)
-                    send_text(text, event, vk_api)
-                else:
-                    text = 'Неправильно… Попробуешь ещё раз?'
-                    send_text(text, event, vk_api)
+    logger.setLevel(logging.DEBUG)
+    telegram_handler = TelegramLogsHandler(chat_id, logger_bot)
+    telegram_handler.setLevel(logging.DEBUG)
+    logger.addHandler(telegram_handler)
+    logger.info('VK-бот запущен')
+    while True:
+        try:
+            redis_connection = redis.Redis(host=redis_host, port=redis_port,
+                                           password=redis_password, db=0, decode_responses=True)
+            longpoll = VkLongPoll(vk_session)
+            for event in longpoll.listen():
+                peer_id = event.peer_id
+                if event.type == VkEventType.MESSAGE_NEW and event.to_me:
+                    if event.text == 'привет':
+                        create_keyboard(vk_api, peer_id)
+                    elif event.text == 'Новый вопрос':
+                        question, answer = ask_question(peer_id)
+                        redis_connection.set(str(peer_id), question)
+                        send_text(question, event, vk_api)
+                        print(answer)
+                    elif event.text == 'Сдаться':
+                        question = redis_connection.get(peer_id)
+                        questions = create_dict_with_questions()
+                        answer = questions[question]
+                        send_text(answer, event, vk_api)
+                        question, answer = ask_question(peer_id)
+                        redis_connection.set(str(peer_id), question)
+                        send_text(question, event, vk_api)
+                        print(answer)
+                    else:
+                        question = redis_connection.get(peer_id)
+                        questions = create_dict_with_questions()
+                        answer = questions[question]
+                        print(answer)
+                        if event.text == answer:
+                            text = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
+                            redis_connection.delete(peer_id)
+                            send_text(text, event, vk_api)
+                        else:
+                            text = 'Неправильно… Попробуешь ещё раз?'
+                            send_text(text, event, vk_api)
+        except Exception:
+            logger.exception('VK-бот упал с ошибкой:')
+            time.sleep(ERROR_CHECKING_DELAY)
 
 
 if __name__ == "__main__":

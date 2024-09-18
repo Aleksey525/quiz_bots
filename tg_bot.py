@@ -1,4 +1,6 @@
+import logging
 import random
+import time
 
 from environs import Env
 import redis
@@ -7,9 +9,11 @@ from telegram import ForceReply
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
 
 from dict_create import create_dict_with_questions
+from logs_handler import TelegramLogsHandler, logger
 
 
 QUESTION, RESPONSE  = range(2)
+ERROR_CHECKING_DELAY = 10
 
 
 def start(update, context):
@@ -91,34 +95,46 @@ def main():
     redis_host = env.str('REDIS_HOST')
     redis_port = env.int('REDIS_PORT')
     redis_password = env.str('REDIS_PASSWORD')
-    redis_connection = redis.Redis(host=redis_host, port=redis_port,
-                    password=redis_password, db=0, decode_responses=True)
+    chat_id = env.str('TG_CHAT_ID')
     dict_with_questions = create_dict_with_questions()
+    logger_bot = telegram.Bot(token=env.str('TG_LOGGER_BOT_TOKEN'))
+    logger.setLevel(logging.DEBUG)
+    telegram_handler = TelegramLogsHandler(chat_id, logger_bot)
+    telegram_handler.setLevel(logging.DEBUG)
+    logger.addHandler(telegram_handler)
+    logger.info('Телеграм-бот запущен')
     updater = Updater(bot_token)
-    dispatcher = updater.dispatcher
-    dispatcher.bot_data['redis_connection'] = redis_connection
-    dispatcher.bot_data['dict_with_questions'] = dict_with_questions
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+    while True:
+        try:
+            redis_connection = redis.Redis(host=redis_host, port=redis_port,
+                                           password=redis_password, db=0, decode_responses=True)
+            dispatcher = updater.dispatcher
+            dispatcher.bot_data['redis_connection'] = redis_connection
+            dispatcher.bot_data['dict_with_questions'] = dict_with_questions
+            conv_handler = ConversationHandler(
+                entry_points=[CommandHandler('start', start)],
 
-        states = {
+                states = {
 
-            QUESTION: [MessageHandler(Filters.regex('^Новый вопрос$'), handle_new_question_request)
-                       ],
+                    QUESTION: [MessageHandler(Filters.regex('^Новый вопрос$'), handle_new_question_request)
+                               ],
 
-            RESPONSE: [MessageHandler(Filters.text & ~Filters.regex('^Новый вопрос$')
-                                      & ~Filters.regex('^Сдаться'), handle_solution_attempt),
-                       MessageHandler(Filters.regex('^Сдаться$'), handle_attempt_surrender)
-                       ],
-        },
+                    RESPONSE: [MessageHandler(Filters.text & ~Filters.regex('^Новый вопрос$')
+                                              & ~Filters.regex('^Сдаться'), handle_solution_attempt),
+                               MessageHandler(Filters.regex('^Сдаться$'), handle_attempt_surrender)
+                               ],
+                },
 
-        fallbacks=[CommandHandler('cancel', cancel)]
+                fallbacks=[CommandHandler('cancel', cancel)]
 
-    )
+            )
 
-    dispatcher.add_handler(conv_handler)
-    updater.start_polling()
-    updater.idle()
+            dispatcher.add_handler(conv_handler)
+            updater.start_polling()
+            updater.idle()
+        except Exception:
+            logger.exception('Телеграм-бот упал с ошибкой:')
+            time.sleep(ERROR_CHECKING_DELAY)
 
 
 if __name__ == '__main__':
