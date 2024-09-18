@@ -47,8 +47,11 @@ def main():
     env = Env()
     env.read_env()
     bot_token = env.str('VK_BOT_TOKEN')
-    r = redis.Redis(host='redis-12998.c299.asia-northeast1-1.gce.redns.redis-cloud.com', port=12998,
-                    password='tzo2yKYPlXlqsGTkZA4IPKTfOvoBuSl1', db=0, decode_responses=True)
+    redis_host = env.str('REDIS_HOST')
+    redis_port = env.int('REDIS_PORT')
+    redis_password = env.str('REDIS_PASSWORD')
+    redis_connection = redis.Redis(host=redis_host, port=redis_port,
+                                   password=redis_password, db=0, decode_responses=True)
     vk_session = vk.VkApi(token=bot_token)
     vk_api = vk_session.get_api()
     longpoll = VkLongPoll(vk_session)
@@ -60,26 +63,26 @@ def main():
                 create_keyboard(vk_api, peer_id)
             elif event.text == 'Новый вопрос':
                 question, answer = ask_question(peer_id)
-                r.set(str(peer_id), question)
+                redis_connection.set(str(peer_id), question)
                 send_text(question, event, vk_api)
                 print(answer)
             elif event.text == 'Сдаться':
-                question = r.get(peer_id)
+                question = redis_connection.get(peer_id)
                 questions = create_dict_with_questions()
                 answer = questions[question]
                 send_text(answer, event, vk_api)
                 question, answer = ask_question(peer_id)
-                r.set(str(peer_id), question)
+                redis_connection.set(str(peer_id), question)
                 send_text(question, event, vk_api)
                 print(answer)
             else:
-                question = r.get(peer_id)
+                question = redis_connection.get(peer_id)
                 questions = create_dict_with_questions()
                 answer = questions[question]
                 print(answer)
                 if event.text == answer:
                     text = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
-                    r.delete(peer_id)
+                    redis_connection.delete(peer_id)
                     send_text(text, event, vk_api)
                 else:
                     text = 'Неправильно… Попробуешь ещё раз?'

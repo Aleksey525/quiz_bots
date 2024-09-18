@@ -88,8 +88,11 @@ def main():
     env = Env()
     env.read_env()
     bot_token = env.str('TG_BOT_TOKEN')
-    redis_connection = redis.Redis(host='redis-12998.c299.asia-northeast1-1.gce.redns.redis-cloud.com', port=12998,
-                    password='tzo2yKYPlXlqsGTkZA4IPKTfOvoBuSl1', db=0, decode_responses=True)
+    redis_host = env.str('REDIS_HOST')
+    redis_port = env.int('REDIS_PORT')
+    redis_password = env.str('REDIS_PASSWORD')
+    redis_connection = redis.Redis(host=redis_host, port=redis_port,
+                    password=redis_password, db=0, decode_responses=True)
     dict_with_questions = create_dict_with_questions()
     updater = Updater(bot_token)
     dispatcher = updater.dispatcher
