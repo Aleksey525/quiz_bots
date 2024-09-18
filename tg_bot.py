@@ -32,33 +32,45 @@ def start(update, context):
 def handle_new_question_request(update, context):
     dict_with_questions = create_dict_with_questions()
     chat_id = update.message.chat_id
-    r = redis.Redis(host='redis-12998.c299.asia-northeast1-1.gce.redns.redis-cloud.com', port=12998,
-                    password='tzo2yKYPlXlqsGTkZA4IPKTfOvoBuSl1', db=0, decode_responses=True)
+    # r = redis.Redis(host='redis-12998.c299.asia-northeast1-1.gce.redns.redis-cloud.com', port=12998,
+    #                 password='tzo2yKYPlXlqsGTkZA4IPKTfOvoBuSl1', db=0, decode_responses=True)
+    redis_connection = context.bot_data['redis_connection']
     question, answer = random.choice(list(dict_with_questions.items()))
-    r.set(str(chat_id), question)
-    question = r.get(str(chat_id))
+    redis_connection.set(chat_id, question)
+    question = redis_connection.get(chat_id)
     update.message.reply_text(question)
     answer = dict_with_questions[question]
-    payload = {'answer': answer}
-    context.bot_data.update(payload)
+    print(answer)
+    # payload = {'answer': answer}
+    # context.bot_data.update(payload)
     return RESPONSE
 
 
 def handle_attempt_surrender(update, context):
     chat_id = update.message.chat_id
+    redis_connection = context.bot_data['redis_connection']
+    question = redis_connection.get(chat_id)
+    dict_with_questions = context.bot_data['dict_with_questions']
+    answer = dict_with_questions[question]
+
     context.bot.send_message(chat_id=chat_id,
-                             text=context.bot_data['answer'])
-    del context.bot_data['answer']
+                             text=answer)
+    redis_connection.delete(chat_id)
     handle_new_question_request(update, context)
     return RESPONSE
 
 
 def handle_solution_attempt(update, context):
     chat_id = update.message.chat_id
-    if update.message.text == context.bot_data['answer']:
+    redis_connection = context.bot_data['redis_connection']
+    question = redis_connection.get(chat_id)
+    dict_with_questions = context.bot_data['dict_with_questions']
+    answer = dict_with_questions[question]
+
+    if update.message.text == answer:
         context.bot.send_message(chat_id=chat_id,
                                  text='Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос')
-        del context.bot_data['answer']
+        redis_connection.delete(chat_id)
         return QUESTION
     else:
         context.bot.send_message(chat_id=chat_id,
@@ -76,8 +88,13 @@ def main():
     env = Env()
     env.read_env()
     bot_token = env.str('TG_BOT_TOKEN')
+    redis_connection = redis.Redis(host='redis-12998.c299.asia-northeast1-1.gce.redns.redis-cloud.com', port=12998,
+                    password='tzo2yKYPlXlqsGTkZA4IPKTfOvoBuSl1', db=0, decode_responses=True)
+    dict_with_questions = create_dict_with_questions()
     updater = Updater(bot_token)
     dispatcher = updater.dispatcher
+    dispatcher.bot_data['redis_connection'] = redis_connection
+    dispatcher.bot_data['dict_with_questions'] = dict_with_questions
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
 
