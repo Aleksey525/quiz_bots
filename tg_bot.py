@@ -28,7 +28,7 @@ def start(update, context):
                        ['Мой счет']]
     reply_markup = telegram.ReplyKeyboardMarkup(custom_keyboard)
     context.bot.send_message(chat_id=chat_id,
-                             text='Появились кнопки',
+                             text='Приветствуем тебя в нашей викторине! На жми "Новый вопрос"',
                              reply_markup=reply_markup)
     return QUESTION
 
@@ -36,17 +36,11 @@ def start(update, context):
 def handle_new_question_request(update, context):
     dict_with_questions = create_dict_with_questions()
     chat_id = update.message.chat_id
-    # r = redis.Redis(host='redis-12998.c299.asia-northeast1-1.gce.redns.redis-cloud.com', port=12998,
-    #                 password='tzo2yKYPlXlqsGTkZA4IPKTfOvoBuSl1', db=0, decode_responses=True)
     redis_connection = context.bot_data['redis_connection']
     question, answer = random.choice(list(dict_with_questions.items()))
     redis_connection.set(chat_id, question)
     question = redis_connection.get(chat_id)
     update.message.reply_text(question)
-    answer = dict_with_questions[question]
-    print(answer)
-    # payload = {'answer': answer}
-    # context.bot_data.update(payload)
     return RESPONSE
 
 

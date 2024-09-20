@@ -76,23 +76,20 @@ def main():
                         create_keyboard(vk_api, peer_id)
                     elif event.text == 'Новый вопрос':
                         question, answer = ask_question(peer_id)
-                        redis_connection.set(str(peer_id), question)
+                        redis_connection.set(peer_id, question)
                         send_text(question, event, vk_api)
-                        print(answer)
                     elif event.text == 'Сдаться':
                         question = redis_connection.get(peer_id)
                         questions = create_dict_with_questions()
                         answer = questions[question]
                         send_text(answer, event, vk_api)
                         question, answer = ask_question(peer_id)
-                        redis_connection.set(str(peer_id), question)
+                        redis_connection.set(peer_id, question)
                         send_text(question, event, vk_api)
-                        print(answer)
                     else:
                         question = redis_connection.get(peer_id)
                         questions = create_dict_with_questions()
                         answer = questions[question]
-                        print(answer)
                         if event.text == answer:
                             text = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
                             redis_connection.delete(peer_id)
