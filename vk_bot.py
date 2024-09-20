@@ -35,7 +35,7 @@ def create_keyboard(vk_api, peer_id):
     keyboard = VkKeyboard(one_time=False)
 
     keyboard.add_button('Новый вопрос', color=VkKeyboardColor.PRIMARY)
-    keyboard.add_button('Сдаться', color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button('Сдаться', color=VkKeyboardColor.NEGATIVE)
 
     keyboard.add_line()
     keyboard.add_button('Мой счет', color=VkKeyboardColor.PRIMARY)
