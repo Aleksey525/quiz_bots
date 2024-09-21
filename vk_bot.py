@@ -44,7 +44,7 @@ def create_keyboard(vk_api, peer_id):
         peer_id=peer_id,
         random_id=get_random_id(),
         keyboard=keyboard.get_keyboard(),
-        message='Приветствуем тебя в нашей викторине! На жми "Новый вопрос"'
+        message='Приветствуем тебя в нашей викторине! Нажми "Новый вопрос"'
     )
 
 
