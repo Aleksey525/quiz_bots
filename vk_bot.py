@@ -71,34 +71,35 @@ def main():
             longpoll = VkLongPoll(vk_session)
             for event in longpoll.listen():
                 peer_id = event.peer_id
-                if event.type == VkEventType.MESSAGE_NEW and event.to_me:
-                    if event.text == 'привет':
-                        create_keyboard(vk_api, peer_id)
-                        continue
-                    if event.text == 'Новый вопрос':
-                        question, answer = ask_question(questions)
-                        redis_connection.set(peer_id, question)
-                        send_text(question, event, vk_api)
-                        continue
-                    if event.text == 'Сдаться':
-                        question = redis_connection.get(peer_id)
-                        answer = questions[question]
-                        send_text(answer, event, vk_api)
-                        question, answer = ask_question(questions)
-                        redis_connection.set(peer_id, question)
-                        send_text(question, event, vk_api)
-                        continue
+                if not (event.type == VkEventType.MESSAGE_NEW and event.to_me):
+                    continue
+                if event.text == 'привет':
+                    create_keyboard(vk_api, peer_id)
+                    continue
+                if event.text == 'Новый вопрос':
+                    question, answer = ask_question(questions)
+                    redis_connection.set(peer_id, question)
+                    send_text(question, event, vk_api)
+                    continue
+                if event.text == 'Сдаться':
                     question = redis_connection.get(peer_id)
-                    if not question:
-                        continue
                     answer = questions[question]
-                    if event.text == answer:
-                        text = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
-                        redis_connection.delete(peer_id)
-                        send_text(text, event, vk_api)
-                    else:
-                        text = 'Неправильно… Попробуешь ещё раз?'
-                        send_text(text, event, vk_api)
+                    send_text(answer, event, vk_api)
+                    question, answer = ask_question(questions)
+                    redis_connection.set(peer_id, question)
+                    send_text(question, event, vk_api)
+                    continue
+                question = redis_connection.get(peer_id)
+                if not question:
+                    continue
+                answer = questions[question]
+                if event.text == answer:
+                    text = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
+                    redis_connection.delete(peer_id)
+                    send_text(text, event, vk_api)
+                else:
+                    text = 'Неправильно… Попробуешь ещё раз?'
+                    send_text(text, event, vk_api)
         except Exception:
             logger.exception('VK-бот упал с ошибкой:')
             time.sleep(ERROR_CHECKING_DELAY)
