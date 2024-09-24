@@ -74,11 +74,13 @@ def main():
                 if event.type == VkEventType.MESSAGE_NEW and event.to_me:
                     if event.text == 'привет':
                         create_keyboard(vk_api, peer_id)
-                    elif event.text == 'Новый вопрос':
+                        continue
+                    if event.text == 'Новый вопрос':
                         question, answer = ask_question(peer_id)
                         redis_connection.set(peer_id, question)
                         send_text(question, event, vk_api)
-                    elif event.text == 'Сдаться':
+                        continue
+                    if event.text == 'Сдаться':
                         question = redis_connection.get(peer_id)
                         questions = create_dict_with_questions()
                         answer = questions[question]
@@ -86,17 +88,19 @@ def main():
                         question, answer = ask_question(peer_id)
                         redis_connection.set(peer_id, question)
                         send_text(question, event, vk_api)
+                        continue
+                    question = redis_connection.get(peer_id)
+                    if not question:
+                        continue
+                    questions = create_dict_with_questions()
+                    answer = questions[question]
+                    if event.text == answer:
+                        text = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
+                        redis_connection.delete(peer_id)
+                        send_text(text, event, vk_api)
                     else:
-                        question = redis_connection.get(peer_id)
-                        questions = create_dict_with_questions()
-                        answer = questions[question]
-                        if event.text == answer:
-                            text = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
-                            redis_connection.delete(peer_id)
-                            send_text(text, event, vk_api)
-                        else:
-                            text = 'Неправильно… Попробуешь ещё раз?'
-                            send_text(text, event, vk_api)
+                        text = 'Неправильно… Попробуешь ещё раз?'
+                        send_text(text, event, vk_api)
         except Exception:
             logger.exception('VK-бот упал с ошибкой:')
             time.sleep(ERROR_CHECKING_DELAY)
