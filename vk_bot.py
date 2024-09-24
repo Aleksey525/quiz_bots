@@ -17,8 +17,7 @@ from logs_handler import TelegramLogsHandler, logger
 ERROR_CHECKING_DELAY = 10
 
 
-def ask_question(chat_id):
-    dict_with_questions = create_dict_with_questions()
+def ask_question(dict_with_questions):
     question, answer = random.choice(list(dict_with_questions.items()))
     return question, answer
 
@@ -57,6 +56,7 @@ def main():
     chat_id = env.str('TG_CHAT_ID')
     redis_password = env.str('REDIS_PASSWORD')
     logger_bot = telegram.Bot(token=env.str('TG_LOGGER_BOT_TOKEN'))
+    questions = create_dict_with_questions()
     vk_session = vk.VkApi(token=bot_token)
     vk_api = vk_session.get_api()
     logger.setLevel(logging.DEBUG)
@@ -76,23 +76,21 @@ def main():
                         create_keyboard(vk_api, peer_id)
                         continue
                     if event.text == 'Новый вопрос':
-                        question, answer = ask_question(peer_id)
+                        question, answer = ask_question(questions)
                         redis_connection.set(peer_id, question)
                         send_text(question, event, vk_api)
                         continue
                     if event.text == 'Сдаться':
                         question = redis_connection.get(peer_id)
-                        questions = create_dict_with_questions()
                         answer = questions[question]
                         send_text(answer, event, vk_api)
-                        question, answer = ask_question(peer_id)
+                        question, answer = ask_question(questions)
                         redis_connection.set(peer_id, question)
                         send_text(question, event, vk_api)
                         continue
                     question = redis_connection.get(peer_id)
                     if not question:
                         continue
-                    questions = create_dict_with_questions()
                     answer = questions[question]
                     if event.text == answer:
                         text = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
